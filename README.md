@@ -1,8 +1,18 @@
-# RabbitMQ for Event-Driven Architecture in Golang
+# RabbitMQ for Event-Driven Architecture in Golang with Microservices
 
 ## RabbitMQ
 
+- Sending data protocol: `AMQP`
+- Expose ports: `5672` is AMQP port connection for RabbitMQ and `15672` is port used by Admin UI/Management UI for RabbitMQ.
+
+---
+
+RabbitMQ comes with a default guest user pre-installed.
+In production we do not want to use this default guest user, first add new user, and remove guest pre-installed user.
+
 ## Event-Driven Architecture
+
+ED-A is used for communication of Microservices with events that will be sended and received in two side of microservices between them will be like Exchange and it will be Asynchronously.
 
 ## Docker
 
@@ -12,6 +22,11 @@ How to run Docker RabbitMQ container instance:
 
 - basic: `docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management`
 - with persistent volume: `docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management`
+
+Go to Management UI:
+
+- `http://127.0.0.1:15672/`
+- user: `guest`, password: `guest`
 
 ---
 
@@ -32,11 +47,11 @@ To view logs of RabbitMQ docker run container instance:
 To access the shell of RabbitMQ container:
 
 - `docker exec -it rabbitmq bash`
-- in bash (to check status of rabbitmq service ctl): `rabbitmqctl status`
+- in bash (to check status of rabbitmq service): `rabbitmqctl status`
 
 ---
 
-Setting Up a RabbitMQ Cluster in Docker:
+#### Setting Up a RabbitMQ Cluster in Docker
 
 1. docker network: `docker network create rabbitmq_cluster`
 2. rabbitmq instances on network: `docker run -d --name rabbitmq1 --hostname rabbitmq1 --network rabbitmq_cluster rabbitmq:3-management`, `docker run -d --name rabbitmq2 --hostname rabbitmq2 --network rabbitmq_cluster rabbitmq:3-management`
@@ -46,8 +61,10 @@ Setting Up a RabbitMQ Cluster in Docker:
 
 ---
 
-Other commands:
+#### Other docker commands
 
+- `docker ps` check runned containers
+- `docker ps -a` check stopped containers
 - `docker network --help`
 - `docker network ls`
 - `docker network inspect bridge`
@@ -60,7 +77,7 @@ Other commands:
 
 ---
 
-Dockerfile:
+#### Dockerfile
 
 ```yml
 FROM rabbitmq:3-management
@@ -69,6 +86,35 @@ WORKDIR /usr/src/app
 ENV RABBITMQ_ERLANG_COOKIE: 'secret cookie here'
 VOLUME ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/mnesia/
 EXPOSE 5672 15672
+```
+
+#### Makefile
+
+```makefile
+# Run RabbitMQ container instance
+rabbit-build:
+	@docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management
+
+# Start the Existing container
+# docker ps -a
+rabbit-run:
+	@docker start rabbitmq
+
+# Stop container
+rabbit-down:
+	@docker stop rabbitmq
+
+# Remove container
+rabbit-rm:
+	@docker rm rabbitmq
+
+# Check logs of container
+rabbit-logs:
+	@docker logs -f rabbitmq
+
+# Access to shell container:
+rabbit-exec:
+	@docker exec -it rabbitmq bash
 ```
 
 ### docker compose
