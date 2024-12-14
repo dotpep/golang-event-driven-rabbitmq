@@ -7,8 +7,83 @@
 
 ---
 
+Users:
+
 RabbitMQ comes with a default guest user pre-installed.
 In production we do not want to use this default guest user, first add new user, and remove guest pre-installed user.
+
+Users are usually used to limit and manage what permissions your users has.
+
+---
+
+Virtual Hosts:
+
+in rabbit you have resources like channels, exchanges, queues etc. this resources are contained in something called Virtual Hosts, Virtual Hosts is sort of a namespace, you use Virtual Hosts to kind of limit and separate resources in a logical way and it's called a Virtual because it's done in The Logical layer it's a soft restriction between what resources can reach what resource etc.
+
+- in the Management UI in right top corner Virtual host: All and / is for global one.
+
+Virtual Host used to group certain resource to grid together and restrict access on those Virtual Hosts.
+
+Also we need permissions to `Virtual Host = customers` to communicate with resources inside Virtual Host.
+
+---
+
+- Queues
+- Producers
+- Exchanges
+- Consumers
+
+```text
+(Anyone sending messages is)
+Producer 1 -- Message 1
+Producer 2 -- Message 1
+--->
+--->
+(Decides where Messages Goes)
+Exchange
+--->
+(A Queue is a Message Buffer)
+Queue
+Message 1, Message 2, Message 3
+--->
+(Anyone receiving messages)
+Consumer
+```
+
+Producers is any piece of software that is sending messages, they produce messages.
+Consumers who is any piece of software that is receiving those messages.
+between them:
+Exchanges - producers send messages to a exchange, is like a broker or router,
+exchange knows which queues are bound to the exchange,
+to bind something to an exchane we use something called a binding,
+a binding is basically a rule or set of rules, if queue should receive messages.
+Queues - is basically a buffer for messages, it's usually a `First In First Out` (FIFO) queue, the messages comes in and comes out in the correct order.
+
+Exchange as bound to a queue by a set of rules so a producer sends a message say that the message is one the topic `Customers_Registred` now exchange will know if a certain queue is bound on that topic and send it further along,
+it's real;y important to understand you don't send messages to the queue, you send messages to The Exchange which then routes the messages where they should go.
+
+### RabbitMQ Docker commands log
+
+#### Users
+
+First way:
+
+> `docker exec -it rabbitmq bash`
+
+- add new user: `rabbitmqctl add_user <newusername> <secretpassword>` (in my case just username: `admin` password: `admin`)
+- add permissions for new added user named admin: `rabbitmqctl set_user_tags admin administrator`
+- remove default pre-installed `guest` user: `rabbitmqctl delete_user guest`
+
+or Second way:
+
+`docker exec -it rabbitmq rabbitmqctl <...command>`
+
+#### Virtual Hosts
+
+> `docker exec -it rabbitmq bash`
+
+- add new virtual host: `rabbitmqctl add_vhost customers`
+- add permissions to `user` (admin) to communication with this Virtual host: `rabbitmqctl set_permissions -p customers admin "^customers.*" ".*" ".*"` (structure: `rabbitmqctl set_permissions -p <vhost_name> <user> <configurations_vhost> <write_regex> <read_regex>`) (configurations, write, read) (using regex pattern `"^customer.*"` for customer virtual host, if we want for all virtual hosts then `".*"`)
 
 ## Event-Driven Architecture
 
@@ -26,7 +101,7 @@ How to run Docker RabbitMQ container instance:
 Go to Management UI:
 
 - `http://127.0.0.1:15672/`
-- user: `guest`, password: `guest`
+- user: `guest`, password: `guest` (for my env: user: `admin`, password: `admin`)
 
 ---
 
@@ -92,6 +167,7 @@ EXPOSE 5672 15672
 
 ```makefile
 # Run RabbitMQ container instance
+# with persistence volume
 rabbit-build:
 	@docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management
 
@@ -139,6 +215,12 @@ volumes:
 - `docker compose logs -f` (logs)
 - `docker compose down` (down)
 - `docker compose down -v` (remove db volume)
+
+## Golang
+
+- in powershell: `mkdir cmd/producer`, `mkdir internal`, `ni cmd\producer\main.go`, `ni internal/rabbitmq.go` (`ni` is alias for `New-Item`) (in bash `touch .\cmd\producer\main.go`)
+- `go mod init github.com/dotpep/golang-event-driven-rabbitmq`
+- `go get github.com/rabbitmq/amqp091-go`
 
 ## Resources/Links
 

@@ -1,4 +1,5 @@
 # Run RabbitMQ container instance
+# with persistence volume
 rabbit-build:
 	@docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management
 
