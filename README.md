@@ -218,7 +218,7 @@ volumes:
 
 ## Golang
 
-- in powershell: `mkdir cmd/producer`, `mkdir internal`, `ni cmd\producer\main.go`, `ni internal/rabbitmq.go` (`ni` is alias for `New-Item`) (in bash `touch .\cmd\producer\main.go`)
+- in powershell: `mkdir cmd/producer`, `mkdir internal`, `ni cmd\producer\main.go`, `mkdir cmd/consumer`, `ni cmd\consumer\main.go`, `ni internal/rabbitmq.go`(`ni` is alias for `New-Item`) (in bash `touch .\cmd\producer\main.go`)
 - `go mod init github.com/dotpep/golang-event-driven-rabbitmq`
 - `go get github.com/rabbitmq/amqp091-go`
 
