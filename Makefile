@@ -1,3 +1,9 @@
+producer:
+	@go run .\cmd\producer\main.go
+
+consumer:
+	@go run .\cmd\consumer\main.go
+
 # Run RabbitMQ container instance
 # with persistence volume
 rabbit-build:
