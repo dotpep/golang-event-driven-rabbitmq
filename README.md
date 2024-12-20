@@ -1,5 +1,14 @@
 # RabbitMQ for Event-Driven Architecture in Golang with Microservices
 
+## Issues
+
+> Windows 10 - Enterprice Environment (hard settings, security rules)
+
+- run as administrator docker desktop
+- disable `public network` firewall rules, for each network or add inbound rule (also try to disable `private network`, `domain network`)
+
+Important Note (latest try, temporary solution): try to just open settings of firewall called `Firewall & network protection` using Serach bar, and try to `on/off`, `Public network` or others like (Private network and Domain network) if doesn't works (in my Windows 10 Enterprice/Pro with special Server rule settings)
+
 ## RabbitMQ
 
 - Sending data protocol: `AMQP`
@@ -62,9 +71,76 @@ Queues - is basically a buffer for messages, it's usually a `First In First Out`
 Exchange as bound to a queue by a set of rules so a producer sends a message say that the message is one the topic `Customers_Registred` now exchange will know if a certain queue is bound on that topic and send it further along,
 it's real;y important to understand you don't send messages to the queue, you send messages to The Exchange which then routes the messages where they should go.
 
+---
+
+You should recreate the channel for each concurrent task,
+but reuse the connection, always have one connection for your particular service,
+and spawn channels from that.
+Reason why we want to do that is because if you spawn connections instead,
+you will create so many TCP connections and that does not scale very well.
+
+---
+
+Sending data:
+
+- Creating Queue
+
+```golang
+type RabbitClient struct {
+    conn *amqp.Connection
+    ch *amqp.Channel
+}
+
+func (rc RabbitClient) CreateQueue(queueName string, durable, autoDelete bool) error {
+    _, err := rc.ch.QueueDeclare(
+        queueName, durable, autoDelete,
+        false, false, nil,
+    )
+    return err
+}
+```
+
+- `queueName` string is queue name like `customers_created` or `customers_test`
+- `durable` bool is for making queue durable and persistence/persisted (for survive messages between restarts or crashes) (whenever the broker restarts it will be saved/persisted Queue of RabbitMQ)
+- `autoDelete` bool is for automatically deleting (if Queue which is set to automatically delete will be deleted whenever the software that created it shuts down so whenever the producer shuts down after the 10 second timeout it will delete the queue, this is very common when you have Dynamic queues being created by service, that you don't know to maybe they respond differently and you don't want to clog everything here with a million queues, you have to delete them so Auto delete is good for that)
+
+---
+
+You're not sending messages on queue we are sending messages to exchanges.
+
+Exchanges.
+
+It is just router but there is a few different exchanges:
+
+- Direct Exchange (Exact Key match) just directly sends messages throught Routing Key
+for example Producer:`customer_created` --> Excahnge:`customer_events` --> Queue:`customer_created` --> Consumer:messagge Received | Queue:`customer_emailed` --> Consumer:messagge Not Received and Queue do not have message
+- Fanout Exchange (Ignores Routing Key) and sends messages to all Queues, no matter what
+for example Producer:`customer_created` --> Excahnge:`customer_events` --> Queue:`customer_created` --> Consumer:messagge Received | Queue:`customer_emailed` --> Consumer:messagge Received
+- Topic Exchange (Rules on Routing Key delimited by ./dot)
+for example Producer:`customers.created.february` --> Excahnge:`customer_events` --> Rule:`customers.created.#` or `customers.*.february` (like `customers.deleted.february`) --> Queue:`customer_created` --> Consumer:messagge Received | Rule:`customers.created.march` --> Queue:`customer_emailed` --> Consumer:messagge Not Received and message do not pass to second Queue because of Rule dismatching.
+Very Dynamic routes for some specific Rules and Topics.
+- Header Exchange - (Rules based on Extra Header) basically key value fields, routing based on header
+for example Producer:`browser = Linux` --> Excahnge:`customer_events` --> Rule:`browser = Linux` --> Queue:`customer_linux` --> Consumer:messagge Received | Rule:`browser = Windows` --> Queue:`customer_windows` --> Consumer:messagge Not Received and message do not pass to second Queue because of Rule dismatching.
+
+To start receiving or sending messages on a Queue,
+you need to bind that Queue to an Exchange this is called The Binding.
+
+Binding is basically a routeing route.
+
+Queue can be bound to multiple Exchanes, also you can have Exchanes being bound to Exchanges.
+
+Whenever you send a Messages on Message Queue you have to add a Routing key,
+and the Routing key is sometimes referred to as The Topic will be used by The Exchange.
+
+---
+
+Creating Exchange - to create Exchange we can use RabbitMQ Admin Command Line tool `rabbitmqadmin` instead `rabbitmqctl`, also you can create Queues inside of code, it depends on what you like to do.
+
+Our admin user doesn't have permissions to send data to the cumtomers `rabbitmqctl set_topic_permissions`.
+
 ### RabbitMQ Docker commands log
 
-#### Users
+#### Users (by `rabbitmqctl`)
 
 First way:
 
@@ -78,16 +154,59 @@ or Second way:
 
 `docker exec -it rabbitmq rabbitmqctl <...command>`
 
-#### Virtual Hosts
+#### Virtual Hosts (by `rabbitmqctl`)
 
 > `docker exec -it rabbitmq bash`
 
 - add new virtual host: `rabbitmqctl add_vhost customers`
-- add permissions to `user` (admin) to communication with this Virtual host: `rabbitmqctl set_permissions -p customers admin "^customers.*" ".*" ".*"` (structure: `rabbitmqctl set_permissions -p <vhost_name> <user> <configurations_vhost> <write_regex> <read_regex>`) (configurations, write, read) (using regex pattern `"^customer.*"` for customer virtual host, if we want for all virtual hosts then `".*"`)
+- add permissions to `user` (admin) to communication with this Virtual host: `rabbitmqctl set_permissions -p customers admin ".*" ".*" ".*"` (structure: `rabbitmqctl set_permissions -p <vhost_name> <user> <configurations_vhost> <write_regex> <read_regex>`) (configurations, write, read) (using regex pattern `"^customer.*"` for customer virtual host, if we want for all virtual hosts then `".*"`)
+
+#### Exchange (using rabbitmq cmd `rabbitmqadmin`)
+
+Declaring new Exchange named customer_events, for Virtual Host of Customer, type of Topic Exchange, for Admin user `rabbitmqadmin declare exchange --vhost=<vhost_name> name=<exchange_name> type=<exchange_type> durable=<durable_bool_param> -u <user> -p <user_password>`
+
+- `docker exec -it rabbitmq rabbitmqadmin declare exchange --vhost=customers name=customer_events type=topic durable=true -u admin -p admin`
+
+Set Topic permissions for admin user, for access of sending data to the customer. `rabbitmqctl set_topic_permissions -p <vhost_name> <user_name> <exchange_name> <write_permission_regex> <read_permission_regex>`
+
+- `rabbitmqctl set_topic_permissions -p customers admin customer_event ".*" ".*"`
+
+#### RabbitMQ Commands
+
+> `docker exec -it rabbitmq bash`
+
+- `rabbitmqctl add_user admin admin_password`
+- `rabbitmqctl set_user_tags admin administrator`
+- `rabbitmqctl delete_user guest`
+
+---
+
+- `rabbitmqctl add_vhost customers`
+- `rabbitmqctl set_permissions -p customers admin ".*" ".*" ".*"`
+- `rabbitmqctl list_vhosts`
+- `rabbitmqctl list_permissions -p customers`
+- `rabbitmqctl list_user_permissions admin`
+
+---
+
+- `rabbitmqadmin declare exchange --vhost=customers name=customer_events type=topic durable=true -u admin -p admin`
+- `rabbitmqadmin delete exchange name='customer_events' --vhost=customers -u admin -p admin`
+- `rabbitmqctl list_exchanges --vhost=customers`
+
+---
+
+- `rabbitmqctl list_exchanges`
+
+---
+
+- `tail -f /var/log/rabbitmq/rabbit@<hostname>.log` Debug Logs
+- `systemctl restart rabbitmq-server` Restart RabbitMQ
 
 ## Event-Driven Architecture
 
 ED-A is used for communication of Microservices with events that will be sended and received in two side of microservices between them will be like Exchange and it will be Asynchronously.
+
+## Makefile Step-By-Step Instruction
 
 ## Docker
 
@@ -163,36 +282,6 @@ VOLUME ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/mnesia/
 EXPOSE 5672 15672
 ```
 
-#### Makefile
-
-```makefile
-# Run RabbitMQ container instance
-# with persistence volume
-rabbit-build:
-	@docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management
-
-# Start the Existing container
-# docker ps -a
-rabbit-run:
-	@docker start rabbitmq
-
-# Stop container
-rabbit-down:
-	@docker stop rabbitmq
-
-# Remove container
-rabbit-rm:
-	@docker rm rabbitmq
-
-# Check logs of container
-rabbit-logs:
-	@docker logs -f rabbitmq
-
-# Access to shell container:
-rabbit-exec:
-	@docker exec -it rabbitmq bash
-```
-
 ### docker compose
 
 ```yml
@@ -226,3 +315,4 @@ volumes:
 
 - [Running RabbitMQ in Docker: A Comprehensive Guide](https://www.svix.com/resources/guides/rabbitmq-docker-setup-guide/#:~:text=Step-by-Step%20Guide%20with%20Code%20Samples%201%20Step%201%3A,network%3A%20...%205%20Step%205%3A%20Persisting%20Data%20)
 - [How to open rabbitmq in browser using docker container?](https://stackoverflow.com/questions/47290108/how-to-open-rabbitmq-in-browser-using-docker-container#:~:text=Please%20you%20need%20to%20enable%20the%20management%20plugins%2C,go%20to%20http%3A%2F%2Flocalhost%3A8085%2F%2C%20to%20access%20the%20management%20console.) (It can be because of Firewall, that was in my case issue to accessing rabbitmq management interface)
+- [Learn RabbitMQ for Event-Driven Architecture (EDA), Golang - Percy](https://programmingpercy.tech/blog/event-driven-architecture-using-rabbitmq/)
