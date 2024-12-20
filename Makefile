@@ -1,69 +1,157 @@
+# ---
+# Golang Applications Management
 producer:
-	@go run .\cmd\producer\main.go
+	@echo "Running Producer..."
+	@go run ./cmd/producer/main.go
 
 consumer:
-	@go run .\cmd\consumer\main.go
+	@echo "Running Consumer..."
+	@go run ./cmd/consumer/main.go
 
-# Run RabbitMQ container instance
-# with persistence volume
+
+# ---
+# RabbitMQ Docker Containers Management
+RABBIT_CONTAINER_NAME = rabbitmq
+RABBIT_IMAGE = rabbitmq:3-management
+RABBIT_PORTS = -p 5672:5672 -p 15672:15672
+RABBIT_VOLUME = -v rabbitmq_data:/var/lib/rabbitmq
+
+# Run a new RabbitMQ container with persistence
 rabbit-build:
-	@docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/data rabbitmq:3-management
+	@echo "Starting a new RabbitMQ container with persistence..."
+	@docker run -d --name $(RABBIT_CONTAINER_NAME) $(RABBIT_PORTS) $(RABBIT_VOLUME) $(RABBIT_IMAGE)
 
-# Start the Existing container
-# docker ps -a
+# Start an existing RabbitMQ container
 rabbit-run:
-	@docker start rabbitmq
+	@echo "Starting RabbitMQ container..."
+	@docker start $(RABBIT_CONTAINER_NAME)
 
-# Stop container
+# Stop the RabbitMQ container
 rabbit-down:
-	@docker stop rabbitmq
+	@echo "Stopping RabbitMQ container..."
+	@docker stop $(RABBIT_CONTAINER_NAME)
 
+# Restart the RabbitMQ container
 rabbit-restart:
-	@docker restart rabbitmq
+	@echo "Restarting RabbitMQ container..."
+	@docker restart $(RABBIT_CONTAINER_NAME)
 
-# Remove container
+# Remove the RabbitMQ container
 rabbit-rm:
-	@docker rm rabbitmq
+	@echo "Removing RabbitMQ container..."
+	@docker rm $(RABBIT_CONTAINER_NAME)
 
-# Check logs of container
+# Check logs of the RabbitMQ container
 rabbit-logs:
-	@docker logs -f rabbitmq
+	@echo "Showing logs of RabbitMQ container..."
+	@docker logs -f $(RABBIT_CONTAINER_NAME)
 
-# Access to shell container:
+# Access the RabbitMQ container shell
 rabbit-exec:
-	@docker exec -it rabbitmq bash
+	@echo "Accessing RabbitMQ container shell..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) bash
 
-# Seting Up RabbitMQ Environment
 
+# ---
+# RabbitMQ Docker Container Environments Setup Management
+
+# Usage:
 # 1. make rabbit-ctl-new_admin_user
 # 2. make rabbit-ctl-new_customers_vhost
 # 3. make rabbit-admin-new_customer_events_exchange
+# 4. make rabbit-info
 
-# Adding new Admin user,
-# with password: admin,
-# setting Administrator privilege,
-# and Deleting Guest default user
-# 1. (rabbitmqctl, add_user) docker exec -it <container_name> rabbitmqctl add_user <newusername> <secretpassword>
-# 2. (rabbitmqctl, set_user_tags) docker exec -it <container_name> rabbitmqctl set_user_tags <username> <privilege>
-# 2. (rabbitmqctl, delete_user) docker exec -it <container_name> rabbitmqctl delete_user <username>
+# RabbitMQ Admin credentials
+RABBIT_ADMIN_USER = admin
+RABBIT_ADMIN_PASS = admin
+
+# RabbitMQ Virtual Host
+VHOST_CUSTOMERS = customers
+
+# Exchange
+EXCHANGE_NAME = customer_events
+EXCHANGE_TYPE = topic
+
+# Adding new Admin user:
+# - Create a new user with administrator privileges.
+# - Delete the default 'guest' user for security.
 rabbit-ctl-new_admin_user:
-	@docker exec -it rabbitmq rabbitmqctl add_user admin admin
-	@docker exec -it rabbitmq rabbitmqctl set_user_tags admin administrator
-	@docker exec -it rabbitmq rabbitmqctl delete_user guest
+	@echo "Adding new admin user..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl add_user $(RABBIT_ADMIN_USER) $(RABBIT_ADMIN_PASS)
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl set_user_tags $(RABBIT_ADMIN_USER) administrator
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl delete_user guest
+	@echo "Listing current users..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_users
 
-# Adding new Virtual Host named Customers,
-# for Admin user, with regex of all permissions (configurations, write, read)
-# (rabbitmqctl, add_vhost) 1. docker exec -it <container_name> rabbitmqctl add_vhost <new_vhost_name>
-# (rabbitmqctl, set_permissions) 2. docker exec -it <container_name> rabbitmqctl set_permissions -p <vhost_name> <user> <configurations_vhost> <write_regex> <read_regex>
+# Adding new Virtual Host named 'customers' and setting permissions:
+# - Create the virtual host.
+# - Set permissions for the admin user to have full access.
 rabbit-ctl-new_customers_vhost:
-	@docker exec -it rabbitmq rabbitmqctl add_vhost customers
-	@docker exec -it rabbitmq rabbitmqctl set_permissions -p customers admin ".*" ".*" ".*"
+	@echo "Creating new virtual host '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl add_vhost $(VHOST_CUSTOMERS)
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl set_permissions -p $(VHOST_CUSTOMERS) $(RABBIT_ADMIN_USER) ".*" ".*" ".*"
+	@echo "Listing permissions for '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_permissions -p $(VHOST_CUSTOMERS)
 
-# Declaring new Exchange named customer_events,
-# for Virtual Host of Customer,
-# type of Topic Exchange,
-# for Admin user.
-# (rabbitmqadmin, declare exchange) 1. docker exec -it <container_name> rabbitmqadmin declare exchange --vhost=<vhost_name> name=<exchange_name> type=<exchange_type> -u <user> -p <user_password> durable=<durable_bool_param>
+# Declaring a new exchange named 'customer_events' in the 'customers' virtual host:
+# - Declare the exchange type of topic.
+# - Set exchange topic permissions for admin.
 rabbit-admin-new_customer_events_exchange:
-	@docker exec -it rabbitmq rabbitmqadmin declare exchange --vhost=customers name=customer_events type=topic -u admin -p admin durable=true
-	@docker exec -it rabbitmq rabbitmqctl set_topic_permissions -p customers admin customer_event ".*" ".*"
+	@echo "Declaring new exchange '$(EXCHANGE_NAME)' in virtual host '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqadmin declare exchange \
+		--vhost=$(VHOST_CUSTOMERS) \
+		--name=$(EXCHANGE_NAME) \
+		--type=$(EXCHANGE_TYPE) \
+		--user=$(RABBIT_ADMIN_USER) \
+		--password=$(RABBIT_ADMIN_USER) \
+		--durable=true
+	@echo "Setting topic permissions for exchange '$(EXCHANGE_NAME)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl set_topic_permissions \
+		-p $(VHOST_CUSTOMERS) \
+		$(RABBIT_ADMIN_USER) \
+		$(EXCHANGE_NAME) \
+		".*" ".*"
+	@echo "Listing exchanges in virtual host '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_exchanges -p $(VHOST_CUSTOMERS)
+
+# Check RabbitMQ configuration and resources:
+rabbit-info:
+	@echo "Listing all virtual hosts..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_vhosts
+	@echo "Listing users and their permissions..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_user_permissions $(RABBIT_ADMIN_USER)
+	@echo "Listing exchanges in virtual host '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_exchanges -p $(VHOST_CUSTOMERS)
+	@echo "Listing queues in virtual host '$(VHOST_CUSTOMERS)'..."
+	@docker exec -it $(RABBIT_CONTAINER_NAME) rabbitmqctl list_queues -p $(VHOST_CUSTOMERS)
+
+
+# ---
+# Additional RabbitMQ Docker container utilities
+
+# Check RabbitMQ container status
+# in Windows use Select-String instead grep (or setup alias powershell: conf t, `new-alias grep Select-String`)
+rabbit-status:
+	@echo "Checking RabbitMQ container status..."
+	@docker ps -a | grep $(RABBIT_CONTAINER_NAME)
+
+# List all Docker volumes
+# in Windows use Select-String instead grep (or setup alias powershell: conf t, `new-alias grep Select-String`)
+docker-volumes:
+	@echo "Listing all Docker volumes..."
+	@docker volume ls | grep $(RABBIT_CONTAINER_NAME)
+
+# Inspect the RabbitMQ container
+rabbit-inspect:
+	@echo "Inspecting RabbitMQ container..."
+	@docker inspect $(RABBIT_CONTAINER_NAME)
+
+# List all Docker containers
+docker-containers:
+	@echo "Listing all Docker containers..."
+	@docker ps -a
+
+# List all Docker containers
+docker-running:
+	@echo "Listing all Running Docker containers..."
+	@docker ps
