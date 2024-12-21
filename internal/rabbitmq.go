@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -46,10 +47,31 @@ func (rc RabbitClient) Close() error {
 	return rc.ch.Close()
 }
 
+// CreateQueue will create a new Queue based on given cfgs
 func (rc RabbitClient) CreateQueue(queueName string, durable, autoDelete bool) error {
 	_, err := rc.ch.QueueDeclare(
 		queueName, durable, autoDelete,
 		false, false, nil,
 	)
 	return err
+}
+
+// CreateBinding will bind the current Channel to the given Exchange using the Routingkey provided
+func (rc RabbitClient) CreateBinding(name, binding, exchange string) error {
+	// leaving noWait false, having noWait set to false will make the channel return an error if its fales to bind
+	return rc.ch.QueueBind(name, binding, exchange, false, nil)
+}
+
+// Send is used to Publish payloads onto an Exchange with the given Routingkey
+func (rc RabbitClient) Send(ctx context.Context, exchange, routingKey string, options amqp.Publishing) error {
+	return rc.ch.PublishWithContext(
+		ctx,
+		exchange, routingKey,
+		// Mandatory is used to determine if an error should be returned upon failure of sending
+		true,
+		// Immediate is removed in RabbitMQ:3
+		false,
+		// msg amqp.Publishing - Options is actuall message that we're sending
+		options,
+	)
 }
