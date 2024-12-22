@@ -138,6 +138,53 @@ Creating Exchange - to create Exchange we can use RabbitMQ Admin Command Line to
 
 Our admin user doesn't have permissions to send data to the cumtomers `rabbitmqctl set_topic_permissions`.
 
+---
+
+We need to create Bindings, we need to bind the Queues that we have created to The Exchange.
+In code with Function.
+
+Also for Sending data through Exchange.
+
+---
+
+Delivery mode is a important parameter to understand,
+if you want to have your messages persist that means,
+if you send a message and no Consumer consumes it,
+and your server restarts that message will be deleted if it's not a Persistent message,
+and those messages are called Transient, so why would you want your messages to be Persistent,
+it is a matter of performance and also up to you to decide is there any reason,
+like if there is no reason that the event will happen if the server comes up for instance there is no to persist it,
+and then they should be Transient to increase performance, because making things durable in RabbitMQ there will be overhead to it, also remember if you're trying to send Persistent messages your Queue also needs to be durable, there is no point sending persistent messages on a Queue that isn't persistent itself.
+
+---
+
+Publishing Messages:
+
+Our Producer need to use Golang Context, and Send message to the Channel, for Exchange and with specific RoutingKey, also provided DeliveryMode of this AMQP Publishing messages Persistent/Transient or other type delivery mode.
+
+---
+
+Consuming Messages And Acknowledgement:
+
+Consumer when consuming a message, our Exchange need to know that Consumer received a message,
+or Consumer needs to Acknowledge The Exchange that Consumer consume message in a Queue.
+
+In some times `autoAck` is Tricky, if you have a consumer that acknowledges the message,
+but then fails that message will get lost, because the server has delivered it, it has done,
+it's job so you might not always want `autoAck`, sometimes you want to say that you want to acknowledge the message manually, whenever your server is done processing that message.
+
+```golang
+func (rc RabbitClient) Consume(queue, consumer string, autoAck bool) (<-chan amqp.Delivery, error)
+---
+    log.Println("Starting Consume... of email-service for Queue - customers-created")
+    messageBus, err := client.Consume("customers_created", "email-service", false)
+    if err != nil {
+        panic(err)
+    }
+```
+
+- if `autoAck` is setted to `false`, our Consumer service will be consuming over and over again, because it doesn't Acknowledge Exchange that Consumer comsumes messages successfuly.
+
 ### RabbitMQ Docker commands log
 
 #### Users (by `rabbitmqctl`)

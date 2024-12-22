@@ -75,3 +75,24 @@ func (rc RabbitClient) Send(ctx context.Context, exchange, routingKey string, op
 		options,
 	)
 }
+
+func (rc RabbitClient) Consume(queue, consumer string, autoAck bool) (<-chan amqp.Delivery, error) {
+	return rc.ch.Consume(
+		queue, consumer,
+		// autoAck Consumer automatically Acknowledges Exchange
+		// if you have service, which does a lot of processing,
+		// might take some time, and can fail, Don't autoAck,
+		// unless you're sure that's what you want
+		autoAck,
+		// exclusive bool param, if it's setted to True,
+		// this will be the one and only consumer consuming that Queue,
+		// if it's False, the server will distrubute messages using a Load Balancing technique,
+		// if you want to consume all the messages set exclusive to True
+		false,
+		// noLocal is not supported in RabbitMQ, it supported in AMQP,
+		// is used to avoid publishing and cunsuming from the same domain
+		false,
+		false,
+		nil,
+	)
+}

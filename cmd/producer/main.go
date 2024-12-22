@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	log.Println("Start Producer Logic...")
+	log.Println("Starting Producer Logic...")
 
 	// TODO: add credentials to .env and load it
 	log.Println("Connecting to the RabbitMQ...")
