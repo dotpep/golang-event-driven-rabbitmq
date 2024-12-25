@@ -185,6 +185,44 @@ func (rc RabbitClient) Consume(queue, consumer string, autoAck bool) (<-chan amq
 
 - if `autoAck` is setted to `false`, our Consumer service will be consuming over and over again, because it doesn't Acknowledge Exchange that Consumer comsumes messages successfuly.
 
+AutoAct - Automatically Acknowledge can be Dangerous, have a an effect that you don't want.
+
+---
+
+Lifetime of RabbitMQ connection for:
+
+- Producer is liftime of calling the Function once, function or Task lifetime
+- Consumer is Singletone, lifetime of whole application runnning or runtime of program
+
+Why is Golang Context used in Producer/Consumer logic in application,
+and also why we have Golang channel or goroutine to use in Consumer logic?
+
+Golang Backgroud Context is used for creating this Lifetimes of connection.
+...
+
+---
+
+Nacking and Retries.
+
+What if there's an actual failure and you kind of want RabbitMQ to know about that?
+
+Insead of sending Ack we can send Nack or (Nacking), which tell RabbitMQ that it acually failed to process.
+Using Nack we can tell RabbitMQ to a retry and re-queue the message,
+should RabbitMQ revenue try sending it out again or should throw it away.
+
+```golang
+			// Nacking RabbitMQ that it was actuall Failure with consuming message
+			if !message.Redelivered {
+				message.Nack(false, true)
+				continue
+			}
+      // Acknowledge
+			if err := message.Ack(false); err != nil {
+				log.Println("Failed to ack message")
+				continue
+			}
+```
+
 ### RabbitMQ Docker commands log
 
 #### Users (by `rabbitmqctl`)
@@ -208,7 +246,7 @@ or Second way:
 - add new virtual host: `rabbitmqctl add_vhost customers`
 - add permissions to `user` (admin) to communication with this Virtual host: `rabbitmqctl set_permissions -p customers admin ".*" ".*" ".*"` (structure: `rabbitmqctl set_permissions -p <vhost_name> <user> <configurations_vhost> <write_regex> <read_regex>`) (configurations, write, read) (using regex pattern `"^customer.*"` for customer virtual host, if we want for all virtual hosts then `".*"`)
 
-#### Exchange (using rabbitmq cmd `rabbitmqadmin`)
+#### Exchange (using rabbitmq cli tool `rabbitmqadmin`)
 
 Declaring new Exchange named customer_events, for Virtual Host of Customer, type of Topic Exchange, for Admin user `rabbitmqadmin declare exchange --vhost=<vhost_name> name=<exchange_name> type=<exchange_type> durable=<durable_bool_param> -u <user> -p <user_password>`
 

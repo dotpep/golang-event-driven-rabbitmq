@@ -71,7 +71,7 @@ func main() {
 		panic(err)
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	log.Println(client)
 	defer log.Println("Shutdown a Producer...")
