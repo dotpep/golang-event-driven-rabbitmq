@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/dotpep/golang-event-driven-rabbitmq/internal"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -34,28 +37,33 @@ func main() {
 	log.Println("Locking... of Golang Channel of AMQP Delivery")
 	var blocking chan struct{}
 
+	// set a timeout for 15 secs
+	ctx := context.Background()
+
+	log.Println("Creating Golang Context... with Background of 15-second")
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// errgroup allows us concurrent tasks
+	workerGoroutineCount := 10
+	g.SetLimit(workerGoroutineCount)
+
 	go func() {
 		for message := range messageBus {
-			log.Printf("New Message: %v\n", message)
-
-			// Acknowledge Exchange that Message was Successfully Consumed
-			//if err := message.Ack(false); err != nil {
-			//	log.Printf("Acknowledge message Failed! %v\n", err)
-			//	continue
-			//}
-
-			// Nacking RabbitMQ that it was actuall Failure with consuming message
-			if !message.Redelivered {
-				message.Nack(false, true)
-				continue
-			}
-
-			if err := message.Ack(false); err != nil {
-				log.Println("Failed to ack message")
-				continue
-			}
-
-			log.Printf("Acknowledge message %s\n", message.MessageId)
+			// spawn a worker
+			msg := message
+			g.Go(func() error {
+				log.Printf("New Message: %v", msg)
+				//time.Sleep(10 * time.Second)
+				if err := msg.Ack(false); err != nil {
+					log.Println("Ack message failed!")
+					return err
+				}
+				log.Printf("Acknowledge message %s\n", msg.MessageId)
+				return nil
+			})
 		}
 	}()
 

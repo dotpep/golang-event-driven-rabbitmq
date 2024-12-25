@@ -49,29 +49,32 @@ func main() {
 		panic(err)
 	}
 
-	log.Println("Creating Golang Context... with Background")
+	log.Println("Creating Golang Context... with Background of 5-second")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println("Sending Persistent Message... to the Exchange - customer_events with RoutingKey - customers.created.us")
-	if err := client.Send(ctx, "customer_events", "customers.created.us", amqp091.Publishing{
-		ContentType:  "text/plain",
-		DeliveryMode: amqp091.Persistent,
-		Body:         []byte(`An cool message between services`),
-	}); err != nil {
-		panic(err)
+	messagesSendCount := 10
+	for i := 0; i < messagesSendCount; i++ {
+		log.Println("Sending Persistent Message... to the Exchange - customer_events with RoutingKey - customers.created.us")
+		if err := client.Send(ctx, "customer_events", "customers.created.us", amqp091.Publishing{
+			ContentType:  "text/plain",
+			DeliveryMode: amqp091.Persistent,
+			Body:         []byte(`An cool message between services`),
+		}); err != nil {
+			panic(err)
+		}
+
+		log.Println("Sending Transient Message... to the Exchange - customer_events with RoutingKey - customers.test")
+		if err := client.Send(ctx, "customer_events", "customers.test", amqp091.Publishing{
+			ContentType:  "text/plain",
+			DeliveryMode: amqp091.Transient,
+			Body:         []byte(`An uncool undurable message`),
+		}); err != nil {
+			panic(err)
+		}
 	}
 
-	log.Println("Sending Transient Message... to the Exchange - customer_events with RoutingKey - customers.test")
-	if err := client.Send(ctx, "customer_events", "customers.test", amqp091.Publishing{
-		ContentType:  "text/plain",
-		DeliveryMode: amqp091.Transient,
-		Body:         []byte(`An uncool undurable message`),
-	}); err != nil {
-		panic(err)
-	}
-
-	time.Sleep(3 * time.Second)
+	//time.Sleep(3 * time.Second)
 
 	log.Println(client)
 	defer log.Println("Shutdown a Producer...")
